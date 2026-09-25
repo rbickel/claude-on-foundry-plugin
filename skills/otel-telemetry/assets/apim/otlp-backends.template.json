@@ -1,0 +1,94 @@
+{
+  "//": [
+    "APIM backends for the OTLP ingestion API -- one per signal.",
+    "",
+    "DO NOT hand-assemble these URLs. Read them off the Application Insights",
+    "component and strip the trailing /v1/<signal>:",
+    "",
+    "  az rest --method get \\",
+    "    --url \"https://management.azure.com/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RG>/providers/microsoft.insights/components/<AI_NAME>?api-version=2020-02-02\" \\",
+    "    --query \"properties.{traces:OTLPTracesEndpoint,metrics:OTLPMetricsEndpoint,logs:OTLPLogsEndpoint}\"",
+    "",
+    "The component returns the FULL endpoint including /v1/traces. The backend URL",
+    "must end at /otlp -- APIM re-appends the operation's URL template. Leaving the",
+    "suffix on produces /otlp/v1/traces/v1/traces and a 404 that presents as",
+    "'telemetry not arriving'.",
+    "",
+    "Three things differ per signal and all three are easy to get wrong:",
+    "  1. metrics uses the  .metrics.ingest.  DCE host; traces and logs use  .ingest.",
+    "  2. the stream is Microsoft-OtelMetrics -- NOT Microsoft-OTLP-Metrics",
+    "  3. metrics land in an Azure Monitor Workspace (PromQL); traces and logs land",
+    "     in Log Analytics (KQL)",
+    "",
+    "Placeholders: <SUBSCRIPTION_ID> <RG> <AI_NAME> <DCE_HOST> <DCR_IMMUTABLE_ID>",
+    "<DCE_HOST> looks like  managed-<AI_NAME>-dce-<SUFFIX>.<REGION>-1",
+    "<DCR_IMMUTABLE_ID> looks like  dcr-0123456789abcdef0123456789abcdef",
+    "",
+    "Remove this // key before use."
+  ],
+
+  "backends": [
+    {
+      "name": "<AI_NAME>-otlp-ingestion-traces",
+      "properties": {
+        "url": "https://<DCE_HOST>.ingest.monitor.azure.com/dataCollectionRules/<DCR_IMMUTABLE_ID>/streams/Microsoft-OTLP-Traces/otlp",
+        "protocol": "http",
+        "resourceId": "https://management.azure.com/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RG>/providers/microsoft.insights/components/<AI_NAME>",
+        "credentials": {
+          "managedIdentity": {
+            "resource": "https://monitor.azure.com",
+            "clientId": null
+          }
+        }
+      }
+    },
+    {
+      "name": "<AI_NAME>-otlp-ingestion-logs",
+      "properties": {
+        "url": "https://<DCE_HOST>.ingest.monitor.azure.com/dataCollectionRules/<DCR_IMMUTABLE_ID>/streams/Microsoft-OTLP-Logs/otlp",
+        "protocol": "http",
+        "resourceId": "https://management.azure.com/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RG>/providers/microsoft.insights/components/<AI_NAME>",
+        "credentials": {
+          "managedIdentity": {
+            "resource": "https://monitor.azure.com",
+            "clientId": null
+          }
+        }
+      }
+    },
+    {
+      "name": "<AI_NAME>-otlp-ingestion-metrics",
+      "properties": {
+        "url": "https://<DCE_HOST>.metrics.ingest.monitor.azure.com/dataCollectionRules/<DCR_IMMUTABLE_ID>/streams/Microsoft-OtelMetrics/otlp",
+        "protocol": "http",
+        "resourceId": "https://management.azure.com/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RG>/providers/microsoft.insights/components/<AI_NAME>",
+        "credentials": {
+          "managedIdentity": {
+            "resource": "https://monitor.azure.com",
+            "clientId": null
+          }
+        }
+      }
+    }
+  ],
+
+  "//identity": [
+    "credentials.managedIdentity.resource is https://monitor.azure.com with NO",
+    "trailing slash. The Foundry backend for the LLM API uses",
+    "https://cognitiveservices.azure.com/ WITH one. Copying the wrong form gives a",
+    "401 on every export.",
+    "",
+    "clientId: null means the system-assigned identity. Set it to a user-assigned",
+    "identity's client id only if APIM uses one.",
+    "",
+    "The APIM identity needs Monitoring Metrics Publisher on the managed DCR, which",
+    "lives in the auto-created resource group ai_<AI_NAME>_<APP_ID_GUID>_managed --",
+    "NOT in <RG>. Despite the name, that role governs all three OTLP streams.",
+    "Runbook step for a human to apply:",
+    "",
+    "  az role assignment create \\",
+    "    --assignee <APIM_PRINCIPAL_ID> \\",
+    "    --role 'Monitoring Metrics Publisher' \\",
+    "    --scope '/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/ai_<AI_NAME>_<APP_ID_GUID>_managed/providers/Microsoft.Insights/dataCollectionRules/managed-<AI_NAME>-dcr'"
+  ]
+}

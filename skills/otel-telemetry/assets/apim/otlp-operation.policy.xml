@@ -1,0 +1,54 @@
+<!--
+    APIM operation policy for each of the three OTLP ingestion operations.
+
+    PLACEHOLDER CONVENTION: this file uses __AI_NAME__ rather than the <AI_NAME>
+    used elsewhere in this plugin. A '<' character is not legal inside an XML
+    attribute value, so the angle-bracket form would make the file fail to parse
+    before APIM ever saw it. Replace __AI_NAME__ with the Application Insights
+    component name receiving client telemetry.
+
+    Apply to all three operations, changing ONLY the backend-id:
+
+        otlp-traces   =>  __AI_NAME__-otlp-ingestion-traces
+        otlp-metrics  =>  __AI_NAME__-otlp-ingestion-metrics
+        otlp-logs     =>  __AI_NAME__-otlp-ingestion-logs
+
+    The body is OTLP protobuf and is passed through untouched. Do NOT add
+    set-body, any policy that reads context.Request.Body, or a logger that
+    captures the payload. Buffering a protobuf stream corrupts the upload, and
+    the resulting ingestion failure is reported only as missing data.
+
+    Compression: unlike the LLM API, there is no reason to strip Accept-Encoding
+    here. Nothing downstream parses the response body for token counts.
+
+    AUTHENTICATION. This template assumes the API requires an APIM subscription
+    key, which APIM validates before this policy runs. To use Entra tokens
+    instead (recommended, as no shared secret then reaches developer machines),
+    set the API's subscriptionRequired to false and uncomment the
+    validate-azure-ad-token block, which mirrors the LLM API. Clients then supply
+    the token through the otelHeadersHelper setting rather than a static header.
+-->
+<policies>
+    <inbound>
+        <base />
+
+        <!--
+        <validate-azure-ad-token tenant-id="{{tenant-id}}" output-token-variable-name="jwt">
+            <audiences>
+                <audience>{{llm-api-audience}}</audience>
+            </audiences>
+        </validate-azure-ad-token>
+        -->
+
+        <set-backend-service id="apim-generated-otlp-backend" backend-id="__AI_NAME__-otlp-ingestion-traces" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

@@ -1,0 +1,38 @@
+<!--
+  APIM policy fragment — id: extract-model-query-body
+
+  Resolves which model a request is asking for and exposes it as
+  context.Variables["model"] (plus ["deployment"] and ["requestedModel"]).
+  Included by the POST /v1/messages operation policy so the emitted token
+  metric can be broken down per model.
+
+  Works for both shapes:
+    - Anthropic Messages API  -> model is in the JSON body ("model": "...")
+    - Azure OpenAI style      -> model is the {deployment-id} route parameter
+
+  CRITICAL: `preserveContent: true` buffers the body so it can still be
+  forwarded to the backend. Without it the request arrives at Foundry empty.
+
+  To deploy this fragment, see README.md in this folder.
+
+  (The Azure CLI command cannot be shown here: a double hyphen is not legal
+  inside an XML comment, and including one makes the whole file fail to parse.)
+-->
+<fragment>
+    <!-- 1a - deployment-id from the route template, when present -->
+    <set-variable name="deployment" value="@(context.Request.MatchedParameters.ContainsKey(&quot;deployment-id&quot;)
+                           ? context.Request.MatchedParameters[&quot;deployment-id&quot;].ToString().ToLower()
+                           : string.Empty)" />
+
+    <!-- 1b - model from the JSON request body -->
+    <set-variable name="reqBody" value="@(context.Request.Body?.As&lt;JObject&gt;(preserveContent: true)
+                           ?? new JObject())" />
+    <set-variable name="model" value="@(((JObject)context.Variables[&quot;reqBody&quot;])
+                              .Property(&quot;model&quot;)?.Value?.ToString().ToLower()
+                              ?? string.Empty)" />
+
+    <!-- 1c - first non-empty of deployment-id or body model -->
+    <set-variable name="requestedModel" value="@(!string.IsNullOrEmpty((string)context.Variables[&quot;deployment&quot;])
+                           ? (string)context.Variables[&quot;deployment&quot;]
+                           : (string)context.Variables[&quot;model&quot;])" />
+</fragment>

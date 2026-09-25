@@ -1,0 +1,43 @@
+<!--
+  APIM policy — API scope ("All operations") for the pass-through API `claude`.
+
+  Placeholders are APIM *named values* referenced as {{name}}. Create them first:
+    tenant-id         = your Entra tenant GUID
+    llm-api-audience  = api://<GATEWAY_APP_ID>
+
+  This policy:
+    1. Requires a valid Entra ID access token and parks the decoded token in the
+       `jwt` context variable for downstream (operation-scope) policies.
+    2. Pins the backend to the Foundry Anthropic pass-through.
+    3. Strips Accept-Encoding. This is REQUIRED: a compressed response body cannot
+       be parsed by <llm-token-limit>/<llm-emit-token-metric>, so token accounting
+       silently reports zero if you leave it in.
+
+  Note on <audiences>: depending on the app registration's
+  requestedAccessTokenVersion, the `aud` claim is either `api://<GATEWAY_APP_ID>`
+  (v1) or the bare app id GUID (v2). Listing both is the safe default — uncomment
+  the second audience if clients get 401s.
+-->
+<policies>
+    <inbound>
+        <base />
+        <validate-azure-ad-token tenant-id="{{tenant-id}}" output-token-variable-name="jwt">
+            <audiences>
+                <audience>{{llm-api-audience}}</audience>
+                <!-- <audience>{{llm-api-client-id}}</audience> -->
+            </audiences>
+        </validate-azure-ad-token>
+        <set-backend-service backend-id="anthropic-endpoint" />
+        <!-- Compression breaks token counting downstream. Do not remove. -->
+        <set-header name="Accept-Encoding" exists-action="delete" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

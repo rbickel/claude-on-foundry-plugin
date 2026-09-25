@@ -1,0 +1,203 @@
+# Claude Enterprise → Anthropic on Foundry migration profile
+#
+# Single source of truth for the migration. Produced by the `enterprise-inventory`
+# skill, consumed by `gateway-blueprint`, `client-rollout` and `otel-telemetry`.
+#
+# `source:` on a value records how it was obtained:
+#   api    — read from the Anthropic Admin API
+#   manual — transcribed by a human (spend limits have no API)
+#   chosen — a migration decision, not an observed value
+#
+# Never put an API key, admin key or secret in this file.
+
+schemaVersion: 1
+generatedAt: "<ISO8601>"
+
+source:
+  product: "<console | enterprise>"   # Console (API org) vs Claude Enterprise (claude.ai)
+  organization:
+    id: "<ORG_UUID>"
+    name: "<ORG_NAME>"
+    source: api
+
+# ---------------------------------------------------------------------------
+# What exists today
+# ---------------------------------------------------------------------------
+current:
+  # Console orgs only. Claude Enterprise has no workspaces — leave empty and use
+  # `groups` below instead.
+  workspaces:
+    - id: "wrkspc_<ID>"
+      name: "<WORKSPACE_NAME>"
+      archived: false
+      memberCount: 0
+      source: api
+
+      rateLimits:
+        # GET /v1/organizations/workspaces/{id}/rate_limits — readable, not writable
+        source: api
+        perModel: []
+
+      spendLimit:
+        # No API exists. Console → Settings → Workspaces → Spend limits.
+        source: manual
+        monthlyUsd: null
+
+      usageBaseline:
+        # Size Azure quotas on the PEAK day, not the mean.
+        source: api
+        windowDays: 90
+        peakDailyTokens: null
+        meanDailyTokens: null
+        totalTokens: null
+        topModels: []
+
+  # Claude Enterprise RBAC groups, if applicable.
+  groups: []
+
+  members:
+    # Personal data. Default to counts only; store the roster only if the user
+    # explicitly asks for it.
+    source: api
+    total: 0
+    byOrgRole:
+      admin: 0
+      developer: 0
+      claude_code_user: 0
+      billing: 0
+      user: 0
+    roster: []
+
+# ---------------------------------------------------------------------------
+# Migration decisions
+# ---------------------------------------------------------------------------
+target:
+  azure:
+    subscriptionId: "<SUBSCRIPTION_ID>"
+    tenantId: "<TENANT_ID>"
+    location: "<AZURE_REGION>"
+    resourceGroup: "<RESOURCE_GROUP>"
+
+    foundry:
+      resourceName: "<FOUNDRY_RESOURCE>"
+      endpoint: "https://<FOUNDRY_RESOURCE>.services.ai.azure.com/"
+      # Native Anthropic Messages API lives under the /anthropic path suffix.
+      anthropicPath: "/anthropic"
+      reuseExisting: false
+      deployments: []
+
+    apim:
+      serviceName: "<APIM_NAME>"
+      resourceGroup: "<APIM_RG>"
+      sku: "<APIM_SKU>"          # Basic v2 verified working. Consumption lacks managed identity.
+      gatewayUrl: "https://<APIM_NAME>.azure-api.net"
+      apiPath: "claude"
+      clientBaseUrl: "https://<APIM_NAME>.azure-api.net/claude"
+      backendName: "anthropic-endpoint"
+      backendAuth: "<managed-identity | api-key>"
+      reuseExisting: false
+
+    entra:
+      appName: "<GATEWAY_APP_NAME>"
+      appId: "<GATEWAY_APP_ID>"
+      audience: "api://<GATEWAY_APP_ID>"
+      scope: "api://<GATEWAY_APP_ID>/access_as_user"
+      requestedAccessTokenVersion: 2
+      groupMembershipClaims: ApplicationGroup
+
+    applicationInsights:
+      # Required — llm-emit-token-metric silently drops metrics without a logger.
+      resourceName: "<APPINSIGHTS_NAME>"
+      loggerConfigured: false
+
+# ---------------------------------------------------------------------------
+# Quota tiers — the heart of the migration
+#
+# Each tier becomes one Entra security group plus two APIM named values.
+# `groupObjectId` MUST be the security group's object id, never an app role id.
+# ---------------------------------------------------------------------------
+tiers:
+  - name: gold
+    source: chosen
+    rationale: "<which workspaces/teams map here, and why this number>"
+    groupDisplayName: "claude-tier-gold"
+    groupObjectId: "<GOLD_GROUP_OBJECT_ID>"
+    appRoleValue: "Claude.Tier.Gold"
+    tokenQuota: 1000000
+    quotaPeriod: Daily          # Hourly | Daily | Weekly | Monthly | Yearly
+    namedValues:
+      group: llm-tier-gold-group
+      quota: llm-tier-gold-quota
+    mappedFrom: []
+
+  - name: silver
+    source: chosen
+    rationale: "<...>"
+    groupDisplayName: "claude-tier-silver"
+    groupObjectId: "<SILVER_GROUP_OBJECT_ID>"
+    appRoleValue: "Claude.Tier.Silver"
+    tokenQuota: 500000
+    quotaPeriod: Daily
+    namedValues:
+      group: llm-tier-silver-group
+      quota: llm-tier-silver-quota
+    mappedFrom: []
+
+# Users in no tier group get quota 0 → HTTP 403 "No LLM quota assigned".
+# That is deliberate (fail closed), but make sure it is intended.
+unassignedUsersPolicy: deny
+
+# ---------------------------------------------------------------------------
+# Clients
+# ---------------------------------------------------------------------------
+clients:
+  claudeCode:
+    enabled: true
+    rolloutMode: "<managed-policy | user-settings>"
+    defaultModel: "<MODEL_ID>"
+  claudeDesktop:
+    enabled: true
+    configPath: "<VERIFY — see client-rollout skill>"
+    defaultModel: "<MODEL_ID>"
+
+telemetry:
+  enabled: true
+
+  # Client telemetry goes to an OTLP ingestion API on APIM that forwards to
+  # Application Insights. There is no collector to deploy.
+  otlpEndpoint: "https://<APIM_NAME>.azure-api.net/<AI_NAME>/otlp"   # root, no port, no /v1 suffix
+  otlpAuth: "<entra-token | apim-subscription-key>"                  # prefer entra-token
+
+  # Use a component SEPARATE from the one receiving gateway metrics: client
+  # telemetry is high-volume and user-attributable, gateway metrics are the
+  # billing record.
+  appInsightsName: "<AI_NAME>"
+  appInsightsResourceGroup: "<RG>"
+
+  # Auto-created when OTLP is enabled. Lives in ai_<AI_NAME>_<APP_ID_GUID>_managed,
+  # NOT in the component's own resource group. Read via:
+  #   az rest --method get --url ".../components/<AI_NAME>?api-version=2020-02-02" \
+  #     --query "properties.{traces:OTLPTracesEndpoint,metrics:OTLPMetricsEndpoint,logs:OTLPLogsEndpoint,dcr:DataCollectionRuleResourceId}"
+  dataCollectionRuleId: "<DCR_RESOURCE_ID>"
+  dcrRoleAssigned: false       # APIM identity needs Monitoring Metrics Publisher on the DCR.
+
+  # Traces and logs land in Log Analytics (KQL); metrics land in an Azure Monitor
+  # Workspace (PromQL). They are not queryable together.
+  logAnalyticsWorkspace: "<WORKSPACE_RESOURCE_ID>"
+  azureMonitorWorkspace: "<AMW_RESOURCE_ID>"
+  metricsIngestionEnabled: false   # AzureMonitorWorkspaceIngestionMode; false ⇒ metrics silently dropped.
+
+  tracesEnabled: false         # Beta, opt-in: CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1.
+  logUserPrompts: false        # Prompt text is sensitive. Off unless explicitly approved.
+  logAssistantResponses: false # INHERITS logUserPrompts when unset — set explicitly.
+  logRawApiBodies: false       # Exports entire conversation histories. Debugging only.
+
+# ---------------------------------------------------------------------------
+# Things a human still has to confirm
+# ---------------------------------------------------------------------------
+openQuestions:
+  - "Spend limits transcribed from the Console — no API exists."
+  - "Confirm tier grouping: which workspaces collapse into which tier."
+  - "Confirm Entra ID P1/P2 licensing (required to assign groups to app roles)."
+  - "Confirm whether per-user dimensions (UserName, Subject) in APIM metrics are acceptable."
+  - "Capture the Anthropic usage baseline BEFORE cutover — it stops accruing afterwards."

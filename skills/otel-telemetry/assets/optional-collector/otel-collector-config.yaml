@@ -1,0 +1,104 @@
+# OPTIONAL — this is NOT the default path.
+#
+# The supported approach is an OTLP ingestion API on API Management forwarding
+# straight to Application Insights, with no collector to run. See the skill and
+# assets/apim/. Use this file only when a stated requirement rules that out:
+#
+#   - attributes must be scrubbed before data leaves your network
+#   - developer machines cannot reach the gateway directly and need an edge relay
+#   - you need local buffering across long disconnections
+#
+# If you deploy this, it sits in FRONT of the APIM OTLP API: clients export to the
+# collector, and the collector's exporter targets APIM. Do not point it at the Data
+# Collection Endpoint directly — that would require distributing Azure credentials
+# to the collector host, which is the problem APIM solves.
+#
+# OpenTelemetry Collector configuration for Claude Code telemetry → Azure Monitor.
+#
+# Reference deployment: Azure Container Apps with external HTTPS ingress on 443.
+# Clients point OTEL_EXPORTER_OTLP_ENDPOINT at the app FQDN and the OTLP HTTP
+# exporter appends /v1/metrics and /v1/logs itself.
+#
+# VERIFY before deploying: the azuremonitor exporter's available config keys and
+# supported signals vary by opentelemetry-collector-contrib version. Check the
+# README for the exact tag you deploy:
+#   https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/azuremonitorexporter
+# In particular, confirm whether your version exports METRICS or only traces and
+# logs — if metrics are unsupported, route them via prometheusremotewrite to an
+# Azure Monitor workspace instead.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+        # Container Apps terminates TLS at ingress and forwards plaintext.
+        # Map ingress targetPort to 4318.
+      # gRPC is intentionally omitted. Keep clients on http/protobuf: gRPC adds
+      # ingress and proxy constraints (notably if you front this with APIM) for
+      # no benefit at this volume.
+      # grpc:
+      #   endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 15
+
+  resource:
+    attributes:
+      - key: service.namespace
+        value: claude-code
+        action: upsert
+      - key: deployment.environment
+        value: <ENVIRONMENT>
+        action: upsert
+
+  # Claude Code can emit user.email and user.account_uuid. Uncomment to strip
+  # them if your telemetry policy does not permit storing per-user identifiers.
+  # attributes/scrub:
+  #   actions:
+  #     - key: user.email
+  #       action: delete
+  #     - key: user.account_uuid
+  #       action: hash
+
+exporters:
+  azuremonitor:
+    # Store the real connection string as a Container Apps secret and inject it
+    # as an env var. Never commit it.
+    connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
+    maxbatchsize: 1024
+    maxbatchinterval: 10s
+
+  # Uncomment while bringing the pipeline up — confirms data is arriving before
+  # you start debugging the Azure Monitor side.
+  # debug:
+  #   verbosity: detailed
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [azuremonitor]
+
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [azuremonitor]
+
+  telemetry:
+    logs:
+      level: info

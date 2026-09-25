@@ -1,0 +1,86 @@
+{
+  "//": [
+    "Claude Code settings for the Azure AI Gateway.",
+    "",
+    "Place at ONE of (highest precedence first):",
+    "  Windows   C:\\ProgramData\\ClaudeCode\\managed-settings.json   (enterprise policy)",
+    "  macOS     /Library/Application Support/ClaudeCode/managed-settings.json",
+    "  Linux     /etc/claude-code/managed-settings.json",
+    "  any OS    ~/.claude/settings.json                              (per user)",
+    "",
+    "Use managed-settings.json for a fleet rollout: users cannot override it.",
+    "Use ~/.claude/settings.json to pilot with a single user first.",
+    "",
+    "Remove this // key before deploying.",
+    "",
+    "NOTE: apiKeyHelper supplies the Entra bearer token, so do NOT also set",
+    "ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN here - a static value would",
+    "shadow the refreshing helper and start failing when the token expires."
+  ],
+
+  "apiKeyHelper": "powershell -NoProfile -ExecutionPolicy Bypass -File %USERPROFILE%\\.claude\\Get-GatewayAccessToken.ps1",
+
+  "//_otelHeadersHelper": [
+    "Supplies the Entra bearer token for telemetry export, so the OTLP API needs",
+    "no APIM subscription key distributed to developer machines.",
+    "",
+    "Different output contract from apiKeyHelper: this emits a JSON OBJECT of",
+    "headers, not a bare token. Re-run every 29 minutes.",
+    "",
+    "Drop this key if your OTLP API uses a subscription key instead; in that case",
+    "set OTEL_EXPORTER_OTLP_HEADERS and treat the key as a secret."
+  ],
+  "otelHeadersHelper": "powershell -NoProfile -ExecutionPolicy Bypass -File %USERPROFILE%\\.claude\\Get-OtlpHeaders.ps1",
+
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://<APIM_NAME>.azure-api.net/claude",
+
+    "CLAUDE_GATEWAY_SCOPE": "api://<GATEWAY_APP_ID>/access_as_user",
+    "CLAUDE_GATEWAY_TENANT_ID": "<TENANT_ID>",
+
+    "ANTHROPIC_MODEL": "<MODEL_ID>",
+
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "https://<APIM_NAME>.azure-api.net/<AI_NAME>/otlp",
+    "OTEL_METRICS_INCLUDE_VERSION": "true",
+
+    "//_otlp_endpoint": [
+      "Points at the OTLP ingestion API on APIM, which forwards to Application",
+      "Insights. There is no collector to deploy.",
+      "",
+      "This is the ROOT, ending at /otlp. Claude Code appends /v1/metrics and",
+      "/v1/logs itself - adding a suffix here yields /v1/metrics/v1/metrics and",
+      "silent 404s.",
+      "",
+      "Do NOT append a port either. ':443' lands after the PATH, not the host,",
+      "so APIM receives '/otlp:443/v1/metrics' as a literal segment and answers",
+      "404 Resource not found. Verified against a live gateway.",
+      "",
+      "OTEL_EXPORTER_OTLP_PROTOCOL has NO default in Claude Code. Removing it",
+      "does not fall back to a sensible value - telemetry just stops, silently.",
+      "It must be http/protobuf: the ingestion API rejects application/json with",
+      "415 UnsupportedMediaType, so http/json drops every export."
+    ],
+
+    "//_tracing": [
+      "Traces are beta and off by default. To enable, add:",
+      "  \"CLAUDE_CODE_ENHANCED_TELEMETRY_BETA\": \"1\",",
+      "  \"OTEL_TRACES_EXPORTER\": \"otlp\""
+    ],
+
+    "//_prompt_logging": [
+      "OTEL_LOG_USER_PROMPTS sends prompt text to Azure.",
+      "OTEL_LOG_ASSISTANT_RESPONSES INHERITS that value when unset - enabling",
+      "prompts also enables responses unless you explicitly set it to \"0\".",
+      "OTEL_LOG_RAW_API_BODIES exports entire conversation histories.",
+      "Leave all three off unless legal/privacy has explicitly approved them."
+    ]
+  },
+
+  "model": "<MODEL_ID>"
+}

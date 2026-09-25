@@ -1,0 +1,158 @@
+{
+  "_comment": [
+    "Microsoft Entra ID application registration template for the Claude gateway API.",
+    "",
+    "Replace every <PLACEHOLDER>. Every GUID marked GENERATE-NEW must be a fresh",
+    "unique GUID you create (e.g. `python -c \"import uuid;print(uuid.uuid4())\"`),",
+    "NOT copied from another tenant.",
+    "",
+    "The well-known GUIDs below are Microsoft first-party constants, identical in",
+    "every tenant, and must be used verbatim:",
+    "  00000003-0000-0000-c000-000000000000  Microsoft Graph",
+    "  04b07795-8ddb-461a-bbee-02f9e1bf7b46  Azure CLI (public client)",
+    "  e1fe6dd8-ba31-4d61-89e7-88639da4683d  Graph delegated User.Read",
+    "  7427e0e9-2fba-42fe-b0c0-848c9e6a8182  Graph delegated offline_access",
+    "  37f7f235-527c-4136-accd-4a02d197296e  Graph delegated openid",
+    "  14dad69e-099b-42c9-810b-d002981feec1  Graph delegated profile",
+    "  64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0  Graph delegated email",
+    "",
+    "Remove this _comment key before submitting to Microsoft Graph."
+  ],
+
+  "displayName": "<GATEWAY_APP_NAME>",
+  "signInAudience": "AzureADMyOrg",
+
+  "identifierUris": [
+    "api://<GATEWAY_APP_ID>"
+  ],
+
+  "_comment_groups": [
+    "ApplicationGroup emits ONLY the groups assigned to this application in the",
+    "`groups` claim. This is deliberate: it is the mitigation for groups overage.",
+    "If a user is in more than ~200 groups and you use 'SecurityGroup' or 'All',",
+    "Entra drops the groups claim entirely and substitutes _claim_names /",
+    "_claim_sources, which the APIM quota policy cannot read -> every user gets 403."
+  ],
+  "groupMembershipClaims": "ApplicationGroup",
+
+  "optionalClaims": {
+    "accessToken": [
+      { "name": "groups", "essential": false, "additionalProperties": [] }
+    ],
+    "idToken": [
+      { "name": "groups", "essential": false, "additionalProperties": [] }
+    ],
+    "saml2Token": []
+  },
+
+  "api": {
+    "requestedAccessTokenVersion": 2,
+    "_comment_tokenversion": [
+      "2 => aud is the bare app id GUID, iss is https://login.microsoftonline.com/<TENANT_ID>/v2.0",
+      "1 => aud is api://<GATEWAY_APP_ID>,   iss is https://sts.windows.net/<TENANT_ID>/",
+      "Whichever you pick, the APIM <audiences> list must match. Listing both",
+      "api://<GATEWAY_APP_ID> and the bare GUID is the resilient choice.",
+      "The Claude Desktop oidc.issuer value must match this too."
+    ],
+    "oauth2PermissionScopes": [
+      {
+        "id": "<GENERATE-NEW-GUID-FOR-SCOPE>",
+        "value": "access_as_user",
+        "type": "User",
+        "isEnabled": true,
+        "adminConsentDisplayName": "Access the Claude gateway as the signed-in user",
+        "adminConsentDescription": "Allows the app to call the Claude gateway API on behalf of the signed-in user, embedding their group membership in the access token.",
+        "userConsentDisplayName": "Access the Claude gateway on your behalf",
+        "userConsentDescription": "Allows the app to call the Claude gateway API as you."
+      }
+    ],
+    "_comment_preauth": [
+      "Pre-authorizing the Azure CLI lets `az account get-access-token --scope",
+      "api://<GATEWAY_APP_ID>/access_as_user` succeed without a separate consent",
+      "prompt. This is what makes the Claude Code apiKeyHelper script work.",
+      "delegatedPermissionIds must contain the access_as_user scope id above."
+    ],
+    "preAuthorizedApplications": [
+      {
+        "appId": "04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+        "delegatedPermissionIds": [
+          "<GENERATE-NEW-GUID-FOR-SCOPE>"
+        ]
+      }
+    ]
+  },
+
+  "_comment_approles": [
+    "App roles exist so that security GROUPS can be assigned to the application,",
+    "which is what makes ApplicationGroup emit those groups in the `groups` claim.",
+    "Assigning a group (rather than a user) to an app role requires Entra ID P1 or P2.",
+    "",
+    "The APIM quota policy does NOT match on these role ids. It matches the",
+    "GROUP OBJECT IDs that land in the `groups` claim. Record those separately",
+    "into the llm-tier-*-group named values."
+  ],
+  "appRoles": [
+    {
+      "id": "<GENERATE-NEW-GUID-FOR-GOLD-ROLE>",
+      "displayName": "Gold",
+      "value": "Claude.Tier.Gold",
+      "description": "Highest Claude token quota tier.",
+      "allowedMemberTypes": ["User"],
+      "isEnabled": true
+    },
+    {
+      "id": "<GENERATE-NEW-GUID-FOR-SILVER-ROLE>",
+      "displayName": "Silver",
+      "value": "Claude.Tier.Silver",
+      "description": "Standard Claude token quota tier.",
+      "allowedMemberTypes": ["User"],
+      "isEnabled": true
+    }
+  ],
+
+  "_comment_publicclient": [
+    "isFallbackPublicClient=true marks this as a public client so CLI / desktop",
+    "auth-code + PKCE flows work without a client secret.",
+    "Claude Desktop's browser auth flow needs a loopback redirect URI."
+  ],
+  "isFallbackPublicClient": true,
+  "publicClient": {
+    "redirectUris": [
+      "http://localhost",
+      "http://127.0.0.1/callback"
+    ]
+  },
+
+  "_comment_spa": [
+    "Only needed if you enable the APIM developer portal OAuth sign-in.",
+    "Drop this block entirely if you are not using the developer portal."
+  ],
+  "spa": {
+    "redirectUris": [
+      "https://<APIM_NAME>.developer.azure-api.net/signin-oauth/code/callback/<APIM_OAUTH_SERVER_ID>",
+      "https://<APIM_NAME>.developer.azure-api.net/signin-oauth/code-pkce/callback/<APIM_OAUTH_SERVER_ID>",
+      "https://<APIM_NAME>.developer.azure-api.net/signin"
+    ]
+  },
+
+  "web": {
+    "redirectUris": [],
+    "implicitGrantSettings": {
+      "enableAccessTokenIssuance": false,
+      "enableIdTokenIssuance": false
+    }
+  },
+
+  "requiredResourceAccess": [
+    {
+      "resourceAppId": "00000003-0000-0000-c000-000000000000",
+      "resourceAccess": [
+        { "id": "e1fe6dd8-ba31-4d61-89e7-88639da4683d", "type": "Scope" },
+        { "id": "7427e0e9-2fba-42fe-b0c0-848c9e6a8182", "type": "Scope" },
+        { "id": "37f7f235-527c-4136-accd-4a02d197296e", "type": "Scope" },
+        { "id": "14dad69e-099b-42c9-810b-d002981feec1", "type": "Scope" },
+        { "id": "64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0", "type": "Scope" }
+      ]
+    }
+  ]
+}

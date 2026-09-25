@@ -1,0 +1,42 @@
+{
+  "$schemaVersion": 2,
+
+  "inference": {
+    "provider": "gateway",
+
+    "baseUrl": "https://<APIM_NAME>.azure-api.net/claude",
+
+    "credential": {
+      "kind": "interactive",
+      "authFlow": "browser",
+
+      "oidc": {
+        "clientId": "<GATEWAY_APP_ID>",
+
+        "issuer": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
+
+        "bearerTokenType": "access_token",
+
+        "scopes": "api://<GATEWAY_APP_ID>/access_as_user openid profile offline_access",
+
+        "appendOfflineAccess": true
+      }
+    }
+  },
+
+  "models": {
+    "discoveryEnabled": true,
+
+    "list": [
+      {
+        "name": "<MODEL_ID>",
+        "labelOverride": "<MODEL_DISPLAY_NAME>",
+        "anthropicFamilyTier": "<opus | sonnet | haiku>",
+        "isFamilyDefault": true
+      }
+    ],
+
+    "defaultEffort": "low",
+    "alwaysStartWithDefault": false
+  }
+}

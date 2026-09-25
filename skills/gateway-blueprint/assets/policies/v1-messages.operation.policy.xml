@@ -1,0 +1,105 @@
+<!--
+  APIM policy — operation scope, POST /v1/messages on the `claude` API.
+
+  Enforces a per-user daily/hourly token quota derived from the caller's Entra ID
+  security-group membership, and emits per-request token metrics.
+
+  Required named values (all hyphenated — APIM named value IDs may contain
+  letters, digits and hyphens; prefer hyphens over underscores):
+    llm-tier-gold-group    = <GOLD_GROUP_OBJECT_ID>    (Entra SECURITY GROUP objectId)
+    llm-tier-gold-quota    = 1000000
+    llm-tier-silver-group  = <SILVER_GROUP_OBJECT_ID>  (Entra SECURITY GROUP objectId)
+    llm-tier-silver-quota  = 500000
+
+  IMPORTANT — what goes in llm-tier-*-group:
+    These are Entra ID SECURITY GROUP **object IDs**, NOT app role IDs.
+    The access token's `groups` claim carries group objectIds. App role
+    assignments surface in the `roles` claim as the role's `value` string and the
+    app role's own GUID never appears in a token. Putting an appRole id here
+    silently yields quota = 0 for everyone -> HTTP 403.
+
+  Requires the app registration to emit the groups claim:
+    groupMembershipClaims: "ApplicationGroup"
+    optionalClaims.accessToken: [{ "name": "groups" }]
+  "ApplicationGroup" limits the claim to groups actually assigned to the
+  application, which is also the mitigation for the groups-overage problem
+  (>200 groups in a JWT are replaced by a `_claim_names` / `_claim_sources`
+  pointer and the `groups` claim disappears entirely).
+
+  Policy-expression typing note (APIM `Jwt` object):
+    Claims["groups"]                      -> string[]   (indexer returns all values)
+    Claims.GetValueOrDefault("name","x")  -> string     (returns the FIRST value)
+  Both forms below are correct; they are not interchangeable.
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Sets context.Variables["model"] from the request body. -->
+        <include-fragment fragment-id="extract-model-query-body" />
+
+        <set-variable name="jwtName" value="@(((Jwt)context.Variables[&quot;jwt&quot;]).Claims.GetValueOrDefault(&quot;name&quot;, &quot;unknown&quot;))" />
+        <set-variable name="jwtSubject" value="@(((Jwt)context.Variables[&quot;jwt&quot;]).Claims.GetValueOrDefault(&quot;sub&quot;, &quot;unknown&quot;))" />
+
+        <!-- Highest-value tier wins when a user belongs to several tier groups. -->
+        <set-variable name="quota" value="@{
+            var claims = ((Jwt)context.Variables[&quot;jwt&quot;]).Claims;
+            var groups = claims.ContainsKey(&quot;groups&quot;) ? claims[&quot;groups&quot;] : new string[0];
+            var tiers = new Dictionary&lt;string, int&gt; {
+                { &quot;{{llm-tier-gold-group}}&quot;,   {{llm-tier-gold-quota}} },
+                { &quot;{{llm-tier-silver-group}}&quot;, {{llm-tier-silver-quota}} }
+            };
+            return groups.Where(g =&gt; tiers.ContainsKey(g))
+                         .Select(g =&gt; tiers[g])
+                         .DefaultIfEmpty(0)
+                         .Max();
+        }" />
+
+        <!-- Not in any tier group => no entitlement. Fail closed. -->
+        <choose>
+            <when condition="@((int)context.Variables[&quot;quota&quot;] &lt;= 0)">
+                <return-response>
+                    <set-status code="403" reason="No LLM quota assigned" />
+                </return-response>
+            </when>
+        </choose>
+
+        <!--
+          counter-key is the token `sub` claim => quota is per user, per tier.
+          estimate-prompt-tokens="false" bills actual usage reported by the
+          backend rather than a pre-request estimate; it is the accurate choice
+          but means a single request can overshoot the remaining quota.
+          token-quota-period: Hourly | Daily | Weekly | Monthly | Yearly
+        -->
+        <llm-token-limit
+            counter-key="@((string)context.Variables[&quot;jwtSubject&quot;])"
+            token-quota="@(Convert.ToInt64(context.Variables[&quot;quota&quot;]))"
+            token-quota-period="Daily"
+            estimate-prompt-tokens="false"
+            remaining-quota-tokens-header-name="x-remaining-quota-tokens" />
+
+        <!--
+          Requires an Application Insights logger wired to this API, otherwise
+          the metric is computed and silently dropped.
+          Max 10 custom dimensions. Emitting per-user dimensions (UserName,
+          Subject) is personal data - confirm it is acceptable under your
+          telemetry policy before enabling in production.
+        -->
+        <llm-emit-token-metric namespace="ClaudeCode">
+            <dimension name="API ID" />
+            <dimension name="Environment" value="production" />
+            <dimension name="UserName" value="@((string)context.Variables[&quot;jwtName&quot;])" />
+            <dimension name="Subject" value="@((string)context.Variables[&quot;jwtSubject&quot;])" />
+            <dimension name="model" value="@((string)context.Variables[&quot;model&quot;])" />
+            <dimension name="quota" value="@(((int)context.Variables[&quot;quota&quot;]).ToString())" />
+        </llm-emit-token-metric>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "claude-on-foundry",
+  "version": "0.1.0",
+  "description": "Migrate Claude Enterprise (Claude Code + Claude Desktop) onto Anthropic models in Azure AI Foundry, fronted by Azure API Management as an AI gateway with Entra ID group-based token quotas, metrics and OpenTelemetry. Read-only discovery that emits reviewable migration artifacts.",
+  "author": {
+    "name": "Raphael Bickel",
+    "email": "raphael.bickel@microsoft.com"
+  },
+  "homepage": "https://github.com/rbickel/claude-on-foundry-plugin",
+  "repository": "https://github.com/rbickel/claude-on-foundry-plugin",
+  "license": "MIT",
+  "keywords": [
+    "azure",
+    "ai-foundry",
+    "api-management",
+    "entra-id",
+    "migration",
+    "gateway",
+    "opentelemetry",
+    "enterprise"
+  ]
+}

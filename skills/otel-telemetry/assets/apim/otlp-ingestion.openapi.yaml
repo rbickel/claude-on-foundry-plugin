@@ -1,0 +1,84 @@
+# OTLP ingestion API for Azure API Management.
+#
+# Import this as an OpenAPI API in APIM, then attach one backend per operation
+# (see otlp-backends.template.json) and the operation policy
+# (see otlp-operation.policy.xml).
+#
+# Replace before importing:
+#   <APIM_NAME>   the API Management service name
+#   <AI_NAME>     the Application Insights component name receiving client telemetry
+#
+# The API path MUST end in /otlp and the operations MUST be exactly /v1/<signal>.
+# Claude Code's OTLP HTTP exporter appends /v1/traces, /v1/metrics and /v1/logs to
+# whatever OTEL_EXPORTER_OTLP_ENDPOINT it is given, so clients are configured with
+# the root:
+#
+#   OTEL_EXPORTER_OTLP_ENDPOINT = https://<APIM_NAME>.azure-api.net/<AI_NAME>/otlp
+#
+# Request bodies are OTLP protobuf. APIM passes them through unmodified; do not add
+# any policy that buffers or rewrites the body.
+#
+# AUTHENTICATION -- pick one, and see the skill's step 5:
+#   Recommended: remove the securitySchemes/security blocks below, set the API's
+#                subscriptionRequired to false, and add validate-azure-ad-token in
+#                the policy so clients present an Entra token via otelHeadersHelper.
+#   Simpler:     keep the subscription key below. It is a shared secret on every
+#                developer machine, rotatable only fleet-wide.
+
+openapi: 3.0.1
+info:
+  title: <AI_NAME> OTLP ingestion
+  description: >-
+    Forwards OTLP traces, metrics, and logs to Application Insights '<AI_NAME>'.
+  version: '1.0'
+
+servers:
+  - url: https://<APIM_NAME>.azure-api.net/<AI_NAME>/otlp
+
+paths:
+  /v1/traces:
+    post:
+      summary: Send OTLP traces
+      description: >-
+        OTLP/HTTP ingestion endpoint for traces. Claude Code only emits spans when
+        CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1 and OTEL_TRACES_EXPORTER=otlp; define
+        the operation anyway so enabling tracing later needs no gateway change.
+      operationId: otlp-traces
+      responses:
+        '200':
+          description: Accepted for ingestion.
+
+  /v1/metrics:
+    post:
+      summary: Send OTLP metrics
+      description: >-
+        OTLP/HTTP ingestion endpoint for metrics. Routed to a different Data
+        Collection Endpoint host than traces and logs -- see the backend template.
+      operationId: otlp-metrics
+      responses:
+        '200':
+          description: Accepted for ingestion.
+
+  /v1/logs:
+    post:
+      summary: Send OTLP logs
+      description: OTLP/HTTP ingestion endpoint for logs and events.
+      operationId: otlp-logs
+      responses:
+        '200':
+          description: Accepted for ingestion.
+
+components:
+  securitySchemes:
+    apiKeyHeader:
+      type: apiKey
+      name: Ocp-Apim-Subscription-Key
+      in: header
+    apiKeyQuery:
+      type: apiKey
+      name: subscription-key
+      in: query
+
+security:
+  - apiKeyHeader: []
+  - apiKeyQuery: []
