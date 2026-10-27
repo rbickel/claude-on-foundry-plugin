@@ -37,7 +37,7 @@ Claude Code ──OTLP/http-protobuf──► APIM  https://<APIM>.azure-api.net
                        ▼                              ▼
              Log Analytics workspace        Azure Monitor Workspace
              OTelLogs / OTelSpans           (Prometheus)
-             OTelEvents / OTelResources     claude_code_* metrics
+             OTelEvents / OTelResources     claude_code.* metrics
              → KQL                          → PromQL
 ```
 
@@ -231,19 +231,20 @@ OTelLogs
 Metrics — PromQL against the Azure Monitor Workspace, not KQL:
 
 ```promql
-sum by (model) (rate(claude_code_token_usage[1h]))
+sum by (model) (sum_over_time({__name__="claude_code.token.usage"}[1h]))
 ```
 
-Metric names are Prometheus-normalised: `claude_code.token.usage` becomes
-`claude_code_token_usage`. The metric set is `claude_code.session.count`,
-`lines_of_code.count`, `commit.count`, `pull_request.count`, `token.usage`,
-`cost.usage`, `code_edit_tool.decision`, `active_time.total`.
+Metric names keep their dots — `claude_code.token.usage`, not
+`claude_code_token_usage` — so select them with `{__name__="..."}` (the workspace
+accepts only `=` on `__name__`, no regex) and quote dotted labels: `by ("user.id")`.
+The metric set is `claude_code.session.count`, `lines_of_code.count`, `commit.count`,
+`pull_request.count`, `token.usage`, `cost.usage`, `code_edit_tool.decision`,
+`active_time.total`.
 
-**If counters look like they reset each interval,** check temporality. Claude Code
-defaults to `delta`; set `OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative`
-if the Prometheus-backed workspace expects cumulative. Verify against your own data
-before rolling out — this produces plausible-looking but wrong totals rather than an
-error.
+**Samples are stored as deltas.** Claude Code defaults to `delta` temporality and the
+workspace keeps each export as-is, so aggregate with `sum_over_time`. `rate()` and
+`increase()` assume cumulative counters and return plausible-looking but wrong
+numbers rather than an error.
 
 Gateway metrics remain in the *other* component's `customMetrics` under the namespace
 declared in the APIM policy. If they are missing entirely, check that an Application

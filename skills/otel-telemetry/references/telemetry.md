@@ -184,8 +184,9 @@ language servers), so those do not re-report.
 
 ## Signal inventory
 
-Metrics (dots become underscores in Prometheus — `claude_code.token.usage` →
-`claude_code_token_usage`):
+Metrics (names keep their dots in the Azure Monitor Workspace — query
+`{__name__="claude_code.token.usage"}`, not `claude_code_token_usage`; samples are
+deltas, so aggregate with `sum_over_time`, not `rate`):
 
 | Metric | Unit |
 | --- | --- |

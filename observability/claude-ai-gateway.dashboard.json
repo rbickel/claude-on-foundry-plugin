@@ -1,0 +1,3121 @@
+{
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "11.6.0"
+    },
+    {
+      "type": "datasource",
+      "id": "grafana-azure-monitor-datasource",
+      "name": "Azure Monitor",
+      "version": "1.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
+  "uid": "claude-ai-gateway-usage",
+  "title": "Claude on Foundry — AI Gateway & Claude Code usage",
+  "description": "Token usage per user/model from the APIM AI Gateway, gateway health from APIM resource logs, and Claude Code client telemetry from OTLP metrics. Part of the claude-on-foundry plugin.",
+  "tags": [
+    "claude",
+    "ai-gateway",
+    "apim",
+    "application-insights",
+    "opentelemetry"
+  ],
+  "editable": true,
+  "graphTooltip": 1,
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "",
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "weekStart": "",
+  "timepicker": {},
+  "links": [],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "am_ds",
+        "label": "Azure Monitor",
+        "query": "grafana-azure-monitor-datasource",
+        "current": {},
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "hide": 0
+      },
+      {
+        "type": "datasource",
+        "name": "prom_ds",
+        "label": "Prometheus (Azure Monitor workspace)",
+        "query": "prometheus",
+        "current": {},
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "hide": 0,
+        "description": "Azure Monitor workspace linked to the Application Insights component (OTLP metrics)."
+      },
+      {
+        "type": "query",
+        "name": "sub",
+        "label": "Subscription",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${am_ds}"
+        },
+        "query": {
+          "refId": "A",
+          "queryType": "Azure Subscriptions",
+          "grafanaTemplateVariableFn": {
+            "kind": "SubscriptionsQuery",
+            "rawQuery": "subscriptions()"
+          }
+        },
+        "definition": "",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": [],
+        "description": ""
+      },
+      {
+        "type": "query",
+        "name": "rg",
+        "label": "Resource group",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${am_ds}"
+        },
+        "query": {
+          "refId": "A",
+          "queryType": "Azure Resource Graph",
+          "subscriptions": [
+            "$sub"
+          ],
+          "azureResourceGraph": {
+            "query": "resources\n| where type =~ \"microsoft.insights/components\"\n| distinct resourceGroup"
+          }
+        },
+        "definition": "",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": [],
+        "description": ""
+      },
+      {
+        "type": "query",
+        "name": "res",
+        "label": "Application Insights",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${am_ds}"
+        },
+        "query": {
+          "refId": "A",
+          "queryType": "Azure Resource Names",
+          "subscription": "$sub",
+          "resourceGroup": "$rg",
+          "namespace": "microsoft.insights/components"
+        },
+        "definition": "",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": [],
+        "description": ""
+      },
+      {
+        "type": "query",
+        "name": "apim",
+        "label": "API Management",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${am_ds}"
+        },
+        "query": {
+          "refId": "A",
+          "queryType": "Azure Resource Graph",
+          "subscriptions": [
+            "$sub"
+          ],
+          "azureResourceGraph": {
+            "query": "resources\n| where type =~ \"microsoft.apimanagement/service\"\n| project id"
+          }
+        },
+        "definition": "",
+        "refresh": 1,
+        "regex": "/(?<value>.*/service/(?<text>[^/]+))/",
+        "sort": 1,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "current": {},
+        "options": [],
+        "description": "AI Gateway instance. Its resource logs must go to a Log Analytics workspace (resource-specific tables)."
+      },
+      {
+        "type": "query",
+        "name": "user",
+        "label": "User",
+        "datasource": {
+          "type": "grafana-azure-monitor-datasource",
+          "uid": "${am_ds}"
+        },
+        "query": {
+          "refId": "A",
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where timestamp > ago(90d)\n| where name == \"Total Tokens\"\n| distinct tostring(customDimensions.UserName)",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ]
+          }
+        },
+        "definition": "",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "hide": 0,
+        "current": {},
+        "options": [],
+        "description": "Filters the AI Gateway token panels. Values come from the UserName dimension of the token metric.",
+        "allValue": "'__all__'"
+      },
+      {
+        "type": "textbox",
+        "name": "price_factor",
+        "label": "Price multiplier",
+        "query": "1",
+        "current": {
+          "text": "1",
+          "value": "1"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "1",
+            "value": "1"
+          }
+        ],
+        "hide": 0,
+        "description": "Applied to list prices for gateway cost estimates, e.g. 0.85 for a 15% negotiated discount."
+      },
+      {
+        "type": "constant",
+        "name": "price_table",
+        "label": "Price table",
+        "hide": 2,
+        "query": "{\"claude-fable-5-1\":[10,50,0.25,12.5],\"claude-fable-5\":[10,50,1.0,12.5],\"claude-opus-5-5\":[4,20,0.2,5],\"claude-opus-5\":[5,25,0.5,6.25],\"claude-opus-4-8\":[5,25,0.5,6.25],\"claude-opus-4-7\":[5,25,0.5,6.25],\"claude-opus-4-6\":[5,25,0.5,6.25],\"claude-sonnet-5-5\":[2,10,0.2,2.5],\"claude-sonnet-5\":[2,10,0.2,2.5],\"claude-sonnet-4-6\":[3,15,0.3,3.75],\"claude-haiku-5-5\":[0.1,0.5,0.01,0.125],\"claude-haiku-4-5\":[1,5,0.1,1.25]}",
+        "description": "USD per million tokens by model family: [input, output, cache read, cache write 5m]. Edit in Dashboard settings > Variables to add models or change prices."
+      },
+      {
+        "type": "custom",
+        "name": "client",
+        "label": "Claude client",
+        "query": "claude-code,claude-code-desktop",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "hide": 0,
+        "description": "Filters the Claude Code telemetry panels by OTel service.name."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "AI Gateway — token usage (all clients, source: APIM llm-emit-token-metric)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Estimated cost",
+      "description": "Gateway tokens × the price_table dashboard variable × the price multiplier. List prices; cache writes priced at the 5-minute rate. Your Foundry invoice is authoritative.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "let P = parse_json('${price_table:raw}');\nlet F = todouble('${price_factor}');\ncustomMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend model = tostring(customDimensions.model), user = tostring(customDimensions.UserName)\n| extend p = P[extract(@\"claude-(?:opus|sonnet|haiku|fable|mythos)-\\d+(?:-\\d\\b)?\", 0, model)]\n| extend cost = valueSum / 1e6 * F * todouble(case(name == \"Prompt Tokens\", p[0], name == \"Completion Tokens\", p[1],\n                                                  name == \"Prompt Cached Tokens\", p[2], p[3]))\n| summarize cost = sum(cost) by bin(timestamp, $__interval)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Billable tokens",
+      "description": "Input + output + cache read + cache write. APIM's own 'Total Tokens' metric excludes cache tokens, which are usually the largest share of Claude traffic.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Input (uncached)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Prompt Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#3987e5"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Output",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Completion Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#d95926"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cache read",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Prompt Cached Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#199e70"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Cache write",
+      "description": "'Cache Creation Tokens' is only emitted by recent APIM gateway versions; older periods read low.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#c98500"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Cache hit ratio",
+      "description": "Cache read ÷ (input + cache read + cache write).",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\") and name != \"Completion Tokens\"\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize cached = sumif(valueSum, name == \"Prompt Cached Tokens\"), all = sum(valueSum)\n| project ratio = iff(all == 0, real(null), cached / all)",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Active users",
+      "description": "Distinct Entra ID 'sub' claims.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name == \"Total Tokens\"\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize users = dcount(tostring(customDimensions.Subject))",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Tokens by type",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend type = case(name == \"Prompt Tokens\", \"input\", name == \"Completion Tokens\", \"output\",\n                     name == \"Prompt Cached Tokens\", \"cache read\", \"cache write\")\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval), type\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*input.*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*output.*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*cache ?read.*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#199e70"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*cache ?(write|creation).*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Estimated cost by user (top 10)",
+      "description": "Gateway tokens × the price_table dashboard variable × the price multiplier. List prices; cache writes priced at the 5-minute rate. Your Foundry invoice is authoritative.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "let P = parse_json('${price_table:raw}');\nlet F = todouble('${price_factor}');\nlet base = customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend model = tostring(customDimensions.model), user = tostring(customDimensions.UserName)\n| extend p = P[extract(@\"claude-(?:opus|sonnet|haiku|fable|mythos)-\\d+(?:-\\d\\b)?\", 0, model)]\n| extend cost = valueSum / 1e6 * F * todouble(case(name == \"Prompt Tokens\", p[0], name == \"Completion Tokens\", p[1],\n                                                  name == \"Prompt Cached Tokens\", p[2], p[3]));\nlet top = base | summarize c = sum(cost) by user | top 10 by c | project user;\nbase\n| where user in (top)\n| summarize cost = sum(cost) by bin(timestamp, $__interval), user\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Usage by user",
+      "description": "Gateway tokens × the price_table dashboard variable × the price multiplier. List prices; cache writes priced at the 5-minute rate. Your Foundry invoice is authoritative.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 15,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "let P = parse_json('${price_table:raw}');\nlet F = todouble('${price_factor}');\nlet costs = customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend model = tostring(customDimensions.model), user = tostring(customDimensions.UserName)\n| extend p = P[extract(@\"claude-(?:opus|sonnet|haiku|fable|mythos)-\\d+(?:-\\d\\b)?\", 0, model)]\n| extend cost = valueSum / 1e6 * F * todouble(case(name == \"Prompt Tokens\", p[0], name == \"Completion Tokens\", p[1],\n                                                  name == \"Prompt Cached Tokens\", p[2], p[3]))\n| summarize ['Est. cost'] = sum(cost) by User = user;\ncustomMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\") or name == \"Total Tokens\"\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend user = tostring(customDimensions.UserName), quota = tolong(customDimensions.quota)\n| summarize\n    Input = sumif(valueSum, name == \"Prompt Tokens\"),\n    Output = sumif(valueSum, name == \"Completion Tokens\"),\n    ['Cache read'] = sumif(valueSum, name == \"Prompt Cached Tokens\"),\n    ['Cache write'] = sumif(valueSum, name == \"Cache Creation Tokens\"),\n    Requests = sumif(valueCount, name == \"Total Tokens\"),\n    ['Daily quota'] = max(quota),\n    ['Last seen'] = max(timestamp)\n    by User = user\n| extend Billable = Input + Output + ['Cache read'] + ['Cache write']\n| join kind=leftouter costs on User\n| project User, ['Est. cost'], Billable, Input, Output, ['Cache read'], ['Cache write'], Requests, ['Daily quota'],\n          ['Last seen']\n| order by ['Est. cost'] desc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Est. cost",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Today's quota consumption (UTC day)",
+      "description": "Input + output against the per-tier daily token-quota. Ignores the dashboard time range. Approximation of the llm-token-limit counter, which is keyed on the token 'sub' claim. Cost today includes cache tokens, which the quota does not count.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 13,
+        "w": 9,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "let P = parse_json('${price_table:raw}');\nlet F = todouble('${price_factor}');\nlet costs = customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where timestamp >= startofday(now())\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend model = tostring(customDimensions.model), user = tostring(customDimensions.UserName)\n| extend p = P[extract(@\"claude-(?:opus|sonnet|haiku|fable|mythos)-\\d+(?:-\\d\\b)?\", 0, model)]\n| extend cost = valueSum / 1e6 * F * todouble(case(name == \"Prompt Tokens\", p[0], name == \"Completion Tokens\", p[1],\n                                                  name == \"Prompt Cached Tokens\", p[2], p[3]))\n| summarize ['Cost today'] = sum(cost) by User = user;\ncustomMetrics\n| where timestamp >= startofday(now())\n| where name == \"Total Tokens\"\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize Used = sum(valueSum), Quota = max(tolong(customDimensions.quota)) by User = tostring(customDimensions.UserName)\n| extend ['% of quota'] = iff(Quota > 0, todouble(Used) / Quota, real(null))\n| join kind=leftouter costs on User\n| project User, Used, Quota, ['% of quota'], ['Cost today']\n| order by ['% of quota'] desc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": false,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% of quota"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#0ca30c",
+                      "value": null
+                    },
+                    {
+                      "color": "#fab219",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "#d03b3b",
+                      "value": 0.95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost today"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "% of quota",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Billable tokens by model",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "customMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| summarize tokens = sum(valueSum) by bin(timestamp, $__interval), model = tostring(customDimensions.model)\n| order by timestamp asc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Usage by API and model",
+      "description": "Gateway tokens × the price_table dashboard variable × the price multiplier. List prices; cache writes priced at the 5-minute rate. Your Foundry invoice is authoritative.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "let P = parse_json('${price_table:raw}');\nlet F = todouble('${price_factor}');\ncustomMetrics\n| where name in (\"Prompt Tokens\", \"Completion Tokens\", \"Prompt Cached Tokens\", \"Cache Creation Tokens\")\n| where '__all__' in (${user:singlequote}) or tostring(customDimensions.UserName) in (${user:singlequote})\n| extend model = tostring(customDimensions.model), user = tostring(customDimensions.UserName)\n| extend p = P[extract(@\"claude-(?:opus|sonnet|haiku|fable|mythos)-\\d+(?:-\\d\\b)?\", 0, model)]\n| extend cost = valueSum / 1e6 * F * todouble(case(name == \"Prompt Tokens\", p[0], name == \"Completion Tokens\", p[1],\n                                                  name == \"Prompt Cached Tokens\", p[2], p[3]))\n| summarize\n    ['Est. cost'] = sum(cost),\n    Billable = sum(valueSum),\n    Input = sumif(valueSum, name == \"Prompt Tokens\"),\n    Output = sumif(valueSum, name == \"Completion Tokens\"),\n    ['Cache read'] = sumif(valueSum, name == \"Prompt Cached Tokens\"),\n    Users = dcount(tostring(customDimensions.Subject)),\n    priced = countif(isnotnull(p))\n    by ['API ID'] = tostring(customDimensions['API ID']), Model = model,\n       Environment = tostring(customDimensions.Environment)\n| extend Price = iff(priced > 0, \"found\", \"missing — add to price_table\")\n| project-away priced\n| order by Billable desc",
+            "resources": [
+              "/subscriptions/${sub}/resourceGroups/${rg}/providers/microsoft.insights/components/${res}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "timestamp"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Billable",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "AI Gateway — requests, errors and latency (source: APIM resource logs)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "LLM requests",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| summarize requests = count() by bin(TimeGenerated, $__interval)\n| order by TimeGenerated asc",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Success rate",
+      "description": "Amber below 99%, red below 95%.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| summarize ok = countif(ResponseCode between (200 .. 299)), n = count()\n| project rate = iff(n == 0, real(null), todouble(ok) / n)",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 0.95
+              },
+              {
+                "color": "transparent",
+                "value": 0.99
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 19,
+      "type": "stat",
+      "title": "Rejected by gateway",
+      "description": "401/403/429 produced by APIM itself: invalid token, no quota tier, or daily token quota exhausted. Not coloured: this is the quota policy working as designed.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| where ResponseCode in (401, 403, 429) and isnull(BackendResponseCode)\n| summarize n = count()",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "Throttled by Foundry (429)",
+      "description": "Backend capacity (TPM/RPM) on the Foundry deployment, not user quota. Amber from 1, red from 50.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| where BackendResponseCode == 429\n| summarize n = count()",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 1
+              },
+              {
+                "color": "#d03b3b",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "Backend / connection errors",
+      "description": "5xx and dropped connections (ResponseCode 0). Amber from 1, red from 10.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| where ResponseCode >= 500 or ResponseCode == 0\n| summarize n = count()",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 1
+              },
+              {
+                "color": "#d03b3b",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "p95 latency",
+      "description": "Streaming responses: time until the last byte, not time to first token.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| where ResponseCode between (200 .. 299)\n| summarize p95 = percentile(TotalTime, 95)",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "Unmatched requests (404)",
+      "description": "Claude or telemetry requests that matched no API — usually a wrong base URL or a :443 suffix on a client endpoint. Amber from 1.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isempty(ApiId)\n| where Url contains \"/v1/messages\" or Url contains \"/otlp\"\n| summarize n = count()",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "Telemetry ingestion success",
+      "description": "OTLP API that forwards Claude Code telemetry to Azure Monitor. Amber below 99%, red below 95%.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 31,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url matches regex @\"/otlp/v1/(traces|metrics|logs)\"\n| summarize ok = countif(ResponseCode between (200 .. 299)), n = count()\n| project rate = iff(n == 0, real(null), todouble(ok) / n)",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#d03b3b",
+                "value": null
+              },
+              {
+                "color": "#fab219",
+                "value": 0.95
+              },
+              {
+                "color": "transparent",
+                "value": 0.99
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "LLM requests by status",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| extend status = case(ResponseCode between (200 .. 299), \"2xx\",\n                       BackendResponseCode == 429, \"429 Foundry\",\n                       ResponseCode in (401, 403, 429) and isnull(BackendResponseCode), strcat(ResponseCode, \" gateway\"),\n                       ResponseCode == 0, \"connection dropped\",\n                       strcat(ResponseCode))\n| summarize requests = count() by bin(TimeGenerated, $__interval), status\n| order by TimeGenerated asc",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "timeseries",
+      "title": "Latency (successful LLM requests)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 35,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where isnotempty(ApiId) and Url contains \"/v1/messages\"\n| where ResponseCode between (200 .. 299)\n| summarize ['p50 total'] = percentile(TotalTime, 50), ['p95 total'] = percentile(TotalTime, 95),\n            ['p95 backend'] = percentile(BackendTime, 95) by bin(TimeGenerated, $__interval)\n| order by TimeGenerated asc",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "time_series",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 27,
+      "type": "table",
+      "title": "Requests by API and APIM subscription",
+      "description": "API = first path segment of the gateway URL.",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where Url contains \"/v1/messages\" or Url contains \"/otlp\"\n| extend Api = tostring(split(parse_url(Url).Path, \"/\")[1])\n| summarize Requests = count(),\n            ['2xx'] = countif(ResponseCode between (200 .. 299)),\n            ['Gateway 4xx'] = countif(ResponseCode between (400 .. 499) and isnull(BackendResponseCode)),\n            ['Foundry 429'] = countif(BackendResponseCode == 429),\n            ['5xx / dropped'] = countif(ResponseCode >= 500 or ResponseCode == 0),\n            ['Last seen'] = max(TimeGenerated)\n    by Api, ['APIM subscription'] = iff(isempty(ApimSubscriptionId), \"(Entra ID / none)\", ApimSubscriptionId)\n| order by Requests desc",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Requests",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 28,
+      "type": "table",
+      "title": "Error details",
+      "description": "",
+      "datasource": {
+        "type": "grafana-azure-monitor-datasource",
+        "uid": "${am_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 43,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-azure-monitor-datasource",
+            "uid": "${am_ds}"
+          },
+          "queryType": "Azure Log Analytics",
+          "azureLogAnalytics": {
+            "query": "ApiManagementGatewayLogs\n| where Url contains \"/v1/messages\" or Url contains \"/otlp\"\n| where not(ResponseCode between (200 .. 399))\n| extend Api = tostring(split(parse_url(Url).Path, \"/\")[1])\n| summarize Count = count(), ['Last seen'] = max(TimeGenerated)\n    by Api, Status = ResponseCode, ['Backend status'] = BackendResponseCode,\n       Source = LastErrorSource, Reason = LastErrorReason, Message = substring(LastErrorMessage, 0, 160)\n| order by Count desc",
+            "resources": [
+              "${apim}"
+            ],
+            "resultFormat": "table",
+            "dashboardTime": true,
+            "timeColumn": "TimeGenerated"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Backend status"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 29,
+      "type": "row",
+      "title": "Claude Code — client telemetry (source: OTel metrics in Azure Monitor workspace)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 30,
+      "type": "stat",
+      "title": "Estimated cost",
+      "description": "Client-side estimate at Anthropic list prices. Your Foundry invoice is authoritative.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum (sum_over_time({__name__=\"claude_code.cost.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Sessions",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum (sum_over_time({__name__=\"claude_code.session.count\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "Active users",
+      "description": "Distinct hashed user.id values.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "count(count by (\"user.id\") (sum_over_time({__name__=\"claude_code.token.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range])))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "Tokens",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum (sum_over_time({__name__=\"claude_code.token.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 34,
+      "type": "stat",
+      "title": "Active time",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum (sum_over_time({__name__=\"claude_code.active_time.total\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "maxDataPoints": 60
+    },
+    {
+      "id": 35,
+      "type": "stat",
+      "title": "Lines of code",
+      "description": "Lines added / removed by Claude Code edits. A 'Gateway Timeout' error here comes from the Azure Monitor workspace query engine, not the dashboard.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (type) (sum_over_time({__name__=\"claude_code.lines_of_code.count\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "{{type}}",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 36,
+      "type": "stat",
+      "title": "Commits",
+      "description": "Commits created by Claude Code.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum (sum_over_time({__name__=\"claude_code.commit.count\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 37,
+      "type": "stat",
+      "title": "Pull requests",
+      "description": "Pull requests created by Claude Code.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum (sum_over_time({__name__=\"claude_code.pull_request.count\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "time_series",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#898781"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 38,
+      "type": "timeseries",
+      "title": "Tokens by type",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (type) (sum_over_time({__name__=\"claude_code.token.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "{{type}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*input.*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*output.*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*cache ?read.*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#199e70"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.*cache ?(write|creation).*/i"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c98500"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 39,
+      "type": "timeseries",
+      "title": "Estimated cost by model",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (model) (sum_over_time({__name__=\"claude_code.cost.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "{{model}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 40,
+      "type": "table",
+      "title": "Usage by user (hashed user.id)",
+      "description": "Through the gateway Claude Code only knows a hashed user.id. To show names, add e.g. enduser.id to OTEL_RESOURCE_ATTRIBUTES in the managed settings.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (\"user.id\") (sum_over_time({__name__=\"claude_code.cost.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (\"user.id\") (sum_over_time({__name__=\"claude_code.token.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (\"user.id\") (sum_over_time({__name__=\"claude_code.session.count\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Cost (USD)",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "user.id": "User (hash)",
+              "Value #A": "Cost (USD)",
+              "Value #B": "Tokens",
+              "Value #C": "Sessions"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "type": "table",
+      "title": "Usage by client and model",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (\"service.name\", model) (sum_over_time({__name__=\"claude_code.cost.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (\"service.name\", model) (sum_over_time({__name__=\"claude_code.token.usage\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__range]))",
+          "legendFormat": "__auto",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Cost (USD)",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "service.name": "Client",
+              "model": "Model",
+              "Value #A": "Cost (USD)",
+              "Value #B": "Tokens"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "Edit tool decisions",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (decision, tool_name) (sum_over_time({__name__=\"claude_code.code_edit_tool.decision\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "{{tool_name}} {{decision}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 43,
+      "type": "timeseries",
+      "title": "Active time",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prom_ds}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prom_ds}"
+          },
+          "expr": "sum by (type) (sum_over_time({__name__=\"claude_code.active_time.total\", \"microsoft.appresourceid\"=~\"(?i)/subscriptions/${sub}/resourcegroups/${rg}/providers/microsoft.insights/components/${res}\", \"service.name\"=~\"${client}\"}[$__interval]))",
+          "legendFormat": "{{type}}",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "interval": "1m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}

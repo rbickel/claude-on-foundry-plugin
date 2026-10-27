@@ -38,7 +38,7 @@ Claude Code ──OTLP/http-protobuf──► APIM  /<ai-name>/otlp
                         ┌─────────────┴──────────────┐
                         ▼                            ▼
               Log Analytics workspace      Azure Monitor Workspace
-              OTelLogs / OTelSpans         claude_code_* (Prometheus)
+              OTelLogs / OTelSpans         claude_code.* (Prometheus)
               OTelEvents / OTelResources
               → KQL                        → PromQL
 ```
