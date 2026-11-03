@@ -32,3 +32,4 @@ docs/media/grafana.svg
 docs/media/microsoft-foundry.svg
 docs/media/token-flow.py
 docs/media/__pycache__/token-flow.cpython-313.pyc
+docs/media/otel-flow.py

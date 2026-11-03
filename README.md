@@ -37,6 +37,8 @@ Claude clients speak their normal wire protocol to it.
 Client telemetry takes the same shape. Application Insights accepts OTLP directly, so
 APIM fronts it as a second API and there is **no OpenTelemetry Collector to deploy**:
 
+![Claude Code exporting OpenTelemetry through the APIM OTLP API into Application Insights, landing in Log Analytics and an Azure Monitor workspace, and updating the Grafana usage dashboard](docs/media/otel-flow.gif)
+
 ```text
 Claude Code ──OTLP/http-protobuf──► APIM  /<ai-name>/otlp/v1/{traces,metrics,logs}
                                       │   managed identity → monitor.azure.com

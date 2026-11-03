@@ -23,6 +23,14 @@ Desktop and SDK callers. They are the authoritative token count. The Claude Code
 client-only signals (estimated cost, sessions, active time, edit decisions) and can be
 split between `claude-code` and `claude-code-desktop`.
 
+How the gateway token metrics reach the dashboard:
+
+![A Claude Code request flowing through the APIM AI gateway to Microsoft Foundry, with tokens streaming back and usage metrics landing in Application Insights and Grafana](../docs/media/token-flow.gif)
+
+How the Claude Code client telemetry reaches it:
+
+![Claude Code exporting OpenTelemetry through the APIM OTLP API into Application Insights, landing in Log Analytics and an Azure Monitor workspace, and updating the Grafana usage dashboard](../docs/media/otel-flow.gif)
+
 ## Variables
 
 | Variable | Purpose |
