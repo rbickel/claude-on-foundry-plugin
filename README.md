@@ -51,6 +51,34 @@ Claude Code ──OTLP/http-protobuf──► APIM  /<ai-name>/otlp/v1/{traces,m
 /plugin install claude-on-foundry@claude-on-foundry
 ```
 
+### Optional: consume an existing AI Gateway
+
+The Azure AI Gateway plugin can discover an existing gateway and configure a client:
+
+```text
+/plugin marketplace add Azure/ai-gateway
+/plugin install ai-gateway@azure
+/ai-gateway:build <gateway-resource-id>
+```
+
+For Claude Code, select a model exposing `/anthropic/v1/messages`, not an
+OpenAI-only model. Set `ANTHROPIC_BASE_URL` to
+`https://<gateway-host>/default/models/anthropic` and use the exact discovered model
+ID. The gateway requires `ANTHROPIC_CUSTOM_HEADERS` containing `Api-Key: <gateway-key>`;
+`ANTHROPIC_API_KEY` alone sends a different header and is insufficient.
+Keep live credentials only in git-ignored `.claude/settings.local.json`, never in
+shared settings. Clear any inherited bearer token or `apiKeyHelper` when using this
+key-based configuration. Rotate the key in the gateway portal if exposed.
+
+Verify a streaming request as well as a non-streaming request before rollout.
+The preview gateway can accept non-streaming Anthropic requests but reject streaming
+ones with `stream_options: Extra inputs are not permitted`, even when the client
+omits that field. In that case, a successful plain model call does not establish
+Claude Code compatibility; retain a working direct-Foundry configuration for rollback.
+
+This consumption path is distinct from this plugin's Entra-authenticated `/claude`
+gateway blueprint below; it does not provision or modify gateway resources.
+
 ## Use
 
 ```text

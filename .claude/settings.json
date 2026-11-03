@@ -1,0 +1,5 @@
+{
+  "enabledPlugins": {
+    "ai-gateway@azure": true
+  }
+}
