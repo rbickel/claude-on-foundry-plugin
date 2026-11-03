@@ -15,6 +15,8 @@ runbook.
 
 ## Architecture
 
+![A Claude Code request flowing through the APIM AI gateway to Azure AI Foundry, with tokens streaming back and usage metrics landing in Application Insights](docs/media/token-flow.gif)
+
 ```text
 Claude Code CLI ─┐   apiKeyHelper → az account get-access-token
                  ├─► APIM  https://<apim>.azure-api.net/claude/v1/messages
@@ -158,6 +160,7 @@ skills/
   otel-telemetry/             stage 4 — OTLP via APIM into Application Insights
 docs/
   architecture.md             end-to-end request and identity flow
+  media/token-flow.py         generates the README animation (python docs/media/token-flow.py)
 ```
 
 Each skill carries its own `references/` (detailed, verified reference material) and
