@@ -25,3 +25,10 @@ Thumbs.db
 *.key
 **/secrets.json
 **/local.settings.json
+docs/media/claude.svg
+docs/media/grafana.svg
+.gitignore
+.gitignore
+docs/media/microsoft-foundry.svg
+docs/media/token-flow.py
+docs/media/__pycache__/token-flow.cpython-313.pyc
